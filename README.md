@@ -67,7 +67,7 @@ Standard air mice track horizontal movement via the **Yaw (Z-axis)**. Because th
 
 | Front | Back |
 |:---:|:---:|
-| ![Front image](docs/images/front.jpeg) | ![Back image](docs/images/back.jpeg) | 
+| ![Front image](docs/images/front.jpg) | ![Back image](docs/images/back.jpg) | 
 
 ---
 
