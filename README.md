@@ -51,6 +51,8 @@ Schematics
 |:---:|
 |![Wiring diagram](docs/images/schematic.jpeg)|
 
+> [!NOTE]
+> The schematics of this project will be uploaded soon....
 
 ---
 
@@ -61,11 +63,11 @@ Follow these steps to assemble the hardware and flash the software for your cust
 ### 1. Hardware Assembly & Connections
 Before wiring the components, check out the wiring schematic image/diagram file included directly inside this repository. 
 
-Key physical rules to keep in mind during assembly:
-* **Power Supply:** Connect the IMU's `VCC` pin directly to the ESP32's **3.3V (3V3) pin**. Avoid the 5V line to prevent logic level mismatches that can freeze the I2C communication bus.
-* **No External Resistors:** You do not need external pull-up resistors for the tactile push buttons. The internal `INPUT_PULLUP` resistors on the ESP32 pins are enabled automatically by the firmware code.
-* **Shared Grounds:** Ensure all component ground points (the IMU and both click buttons) are tied together back to a common **GND** pin on the ESP32 dev board.
-* **Address Pin:** Tie the **AD0** pin on your IMU sensor directly to **GND** to permanently lock its I2C address profile to `0x68`.
+* **Use Female Header Pins:** Solder female header rows onto the perfboard for the ESP32 and MPU6050 rather than soldering the microcontrollers directly. This makes it easy to swap out components if hardware damage occurs and prevents overheating the core silicon chips during assembly.
+* **Anchor Key Power Points:** Route and solder your solid 5V external power supply lines directly to the matching female header slots corresponding to the ESP32 `VIN` and `GND` pins. 
+* **Keep Data Lines Short:** Route the I2C signal lines (`SDA` to GPIO 21 and `SCL` to GPIO 22) using the shortest wire runs possible to minimize parasitic capacitance and electrical interference.
+* **Wire Buttons with Common Ground:** Connect one side of each tactile pushbutton to its designated GPIO pin (12, 14, 26, 27) and chain the opposite side of all four switches together into a single, clean path to the common system `GND`.
+* **Verify against the Schematic:** Double-check every single soldered path against your project schematic before applying power. Ensure there are no bridge shorts between adjacent pins—especially near the high-sensitivity analog battery monitor pin (GPIO 32).
 
 ---
 
