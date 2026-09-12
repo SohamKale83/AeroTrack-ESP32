@@ -15,8 +15,6 @@ This project features a custom software workaround using direct I2C communicatio
 
 ---
 
----
-
 ## 🚀 How It Works (The Roll-Pitch Mapping)
 Standard air mice track horizontal movement via the **Yaw (Z-axis)**. Because this module had a locked Z-axis defect, the tracking configuration was re-mapped to operate seamlessly on 5 active axes:
 
@@ -29,14 +27,14 @@ Standard air mice track horizontal movement via the **Yaw (Z-axis)**. Because th
 
 |Sr no. | Componets | Quantity | Description |
 |---|---|---|---|
-| 1 | ESP32 | 1 | | 
-| 2 | Pushbutton | 4 | | 
-| 3 | Female pin headers | 2 | |
-| 4 | Lm2596 buck converter | 1 | | 
-| 5 | white (5mm) led | 1 | | 
-| 6 | red (5mm) led | 1 | | 
-| 7 | Switch | 1 | | 
-| 8 | lithium battery holder | 1 | |
+| 1 | ESP32 | 1 | Brain of cursor working | 
+| 2 | Pushbutton | 4 | For clicks | 
+| 3 | Female pin headers | 2 | To place microcontroller and mpu6050 |
+| 4 | Lm2596 buck converter | 1 | For power supply 5v | 
+| 5 | white (5mm) led | 1 | To indicate that esp32 and mpu6050 is working | 
+| 6 | red (5mm) led | 1 | if battery voltage low it will light up  | 
+| 7 | Switch | 1 | to turn ON or OFF | 
+| 8 | 2x lithium battery holder | 1 | to place 2 lithium ion batteries |
 
 ---
 
@@ -73,8 +71,7 @@ Standard air mice track horizontal movement via the **Yaw (Z-axis)**. Because th
 
 ## 🎬 Working Demo 
 
->[!NOTE]
-> The working demo of projects will be uploaded in upcoming time.
+![GIF](docs/images/demo.gif)
 
 ---
 
