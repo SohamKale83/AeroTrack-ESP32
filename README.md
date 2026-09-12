@@ -1,25 +1,17 @@
-# 🖱️ AeroTrack-ESP32: 5-Axis Wireless Air Mouse
+# 🖱️ AeroTrack-ESP32: Wireless Air Mouse
 
-A custom-built, wearable/handheld spatial pointer that lets you control your computer or smartphone cursor wirelessly by tilting your hand in the air. 
+ESP32 Air Pointer is a high-precision, plug-and-play Bluetooth LE air mouse that transforms hand gestures into smooth on-screen cursor movements. By combining an ESP32 and MPU6050/6500 IMU, it uses custom exponential smoothing and strict deadzones to completely eliminate hand tremors and drift. 
 
-This project features a custom software workaround using direct I2C communication via the `Wire` library to completely bypass a manufacturing defect (locked Gyro Z-axis) and broken register maps on a cloned MPU6500/6050 chip.
+It acts as a native HID device featuring tactical click switches, fluid webpage scrolling controls, and a dedicated low-battery alert circuit—making it a seamless controller for laptops, smartphones, and smart TVs with zero cursor lag.
 
 ---
 
 ## ✨ Features
-* **Bypassed Gyro Z Defect:** Re-engineered spatial tracking using the working Gyro X (Roll) for horizontal control and Gyro Y (Pitch) for vertical control.
-* **No Heavy Libraries:** Built using pure `Wire.h` registry tracking, maximizing performance and keeping the ESP32 code memory footprint exceptionally low.
-* **Low Memory BLE:** Powered by the `ESP32BLECombo` library for ultra-fast, RAM-friendly Bluetooth Low Energy HID performance.
-* **Auto-Calibration:** Runs a baseline noise-absorb loop at startup to eliminate resting cursor drift.
-* **Hardware Buttons:** Built-in internal pull-up logic tracking for physical Left and Right click inputs without needing external resistors.
-
----
-
-## 🚀 How It Works (The Roll-Pitch Mapping)
-Standard air mice track horizontal movement via the **Yaw (Z-axis)**. Because this module had a locked Z-axis defect, the tracking configuration was re-mapped to operate seamlessly on 5 active axes:
-
-1. **Vertical Movement (Y-Axis):** Handled natively by tilting the wrist up and down (**Pitch Axis**).
-2. **Horizontal Movement (X-Axis):** Handled by tilting/banking the device sideways like an airplane (**Roll Axis**). This eliminates the need for Gyro Z entirely.
+* **Tremor-Free Fluid Tracking:** Utilizes custom exponential smoothing and expanded signal deadzones to deliver stable pointer motion without hand jitters
+* **Plug-and-Play BLE Connectivity:** Emulates a native Bluetooth HID mouse that connects instantly to Windows, Android, macOS, and Linux without external software.
+* **Dedicated Web Scroll Mechanics:** Integrates continuous vertical page scrolling directly onto hardware tactile pushbuttons for seamless browsing.
+* **Instant-On Drift Calibration:** Implements hardcoded raw bias offsets to eliminate the need for lengthy startup delay configurations or resting states.
+* **Smart Background Battery Monitor:** Tracks dual-cell logic voltage dividers via non-blocking timers to activate low-power alert LEDs without introducing cursor lag.
 
 ---
 
@@ -32,34 +24,12 @@ Standard air mice track horizontal movement via the **Yaw (Z-axis)**. Because th
 | 3 | Female pin headers | 2 | To place microcontroller and mpu6050 |
 | 4 | Lm2596 buck converter | 1 | For power supply 5v | 
 | 5 | white (5mm) led | 1 | To indicate that esp32 and mpu6050 is working | 
-| 6 | red (5mm) led | 1 | if battery voltage low it will light up  | 
-| 7 | Switch | 1 | to turn ON or OFF | 
-| 8 | 2x lithium battery holder | 1 | to place 2 lithium ion batteries |
-
+| 6 | red (5mm) led | 1 | If battery voltage low it will light up  | 
+| 7 | Switch | 1 | To turn ON or OFF | 
+| 8 | 2x lithium battery holder | 1 | To place 2 lithium ion batteries |
+| 9 | Perfboard | 1 | Sensors and microcontroller and other things will be placed on this |
 ---
 
-## 🧰 Required Equipment & Tools
-
-1. 30 AWG Wrapping Wire: Essential for neat, ultra-fine point-to-point row and column routing underneath your perfboard.
-2. Soldering Iron & Stand: A fine-tip soldering iron set to a steady temperature is necessary to handle.
-3. Rosin Core Solder Wire: High-quality thin solder wire to ensure clean, flux-filled solder joints that resist cracking during movement.
-4. Protoboard / Perfboard: The structural base canvas used to arrange and hand-solder the components into a single standalone device.
-
----
-
-## 🔌 Circuit Wiring Blueprint
-
-| Component | Pin | ESP32 Target Pin | Function |
-| :--- | :--- | :--- | :--- |
-| **IMU Sensor** | VCC | **3V3** | 3.3V Main Power Line |
-| | GND | **GND** | Shared System Ground |
-| | SCL | **GPIO 22** | I2C Clock Line |
-| | SDA | **GPIO 21** | I2C Data Line |
-| | AD0 | **GND** | Hard-locks I2C Address to `0x68` |
-| **Left Click** | Leg A / B | **GPIO 12 / GND** | Mouse Left Click |
-| **Right Click**| Leg A / B | **GPIO 14 / GND** | Mouse Right Click |
-
----
 
 ## 📸 Hardware photos
 
@@ -129,9 +99,10 @@ Before hitting the upload button, complete these quick environment setup configu
 ## Repository Structure
 
 ```
-├── docs/images
+├── docs/
+│   └──images
 ├── Wireless_cursor/
-│   Wireless_cursor.ino
+│   └──Wireless_cursor.ino
 ├── LICENSE
 └── README.md
 

@@ -1,169 +1,209 @@
 #include <Wire.h>
-#include <ESP32BLECombo.h> // Using kokodev's optimized library
+#include <ESP32BLECombo.h> 
 
-// Instantiate the BLE Combo object
+
 ESP32BLECombo bleMouse;
 
-// Hardware Configurations
-const int MPU_ADDR = 0x68; // Standard I2C address for MPU6050/6500
 
-// Button GPIO Pin Definitions (Kept only Left and Right Click)
-const int PIN_LEFT_CLICK = 12;
-const int PIN_RIGHT_CLICK = 14;
+const int MPU_ADDR = 0x68; 
 
-// Manually mapping explicit HID Mouse Codes to match library functions
-const uint8_t CONFIG_MOUSE_LEFT  = 0x01;
-const uint8_t CONFIG_MOUSE_RIGHT = 0x02;
 
-// Track the state of the mouse buttons to prevent spamming press/release
-bool isLeftPressed  = false;
-bool isRightPressed = false;
+const int PIN_LEFT_CLICK  = 12; 
+const int PIN_RIGHT_CLICK = 14; 
+const int PIN_WEB_BACK    = 27; 
+const int PIN_WEB_FORWARD = 26; 
 
-// Adjustable Sensitivity Variables (Tweak these to alter cursor speed)
-const float SENSITIVITY_X = 0.35; // Maps Gyro X (Roll) to Screen X
-const float SENSITIVITY_Y = 0.45; // Maps Gyro Y (Pitch) to Screen Y
-const int GYRO_DEADZONE = 180;    // Filter value to absorb your ~2500 resting noise
+const int WHITE_LED  = 2;  
+const int RED_LED    = 4;  
+const int ANALOG_PIN = 32; 
 
-// Calibration Variables
-int16_t gyroX_cal = 0;
-int16_t gyroY_cal = 0;
 
-// Tracking connection transitions for the serial print notification
+const uint8_t CONFIG_MOUSE_LEFT    = 1;  
+const uint8_t CONFIG_MOUSE_RIGHT   = 2;  
+
+// State booleans to handle edge-triggering and avoid command flooding
+bool isLeftPressed    = false;
+bool isRightPressed   = false;
+unsigned long lastClickTime = 0; 
+
+// Non-blocking timer variables for background battery execution
+unsigned long lastBatteryCheckTime = 0;
+const unsigned long BATTERY_CHECK_INTERVAL = 1000; // 1 second intervals
+
+// =========================================================================
+// TUNING PARAMETERS: PRESERVED YOUR PREVIOUS WORKING VALUES
+// =========================================================================
+const float SENSITIVITY_X = 3.5;  
+const float SENSITIVITY_Y = 4.0;  
+
+const int GYRO_DEADZONE = 600;    
+
+const float SMOOTHING_FACTOR = 0.35; 
+
+// HARDCODED BIAS OFFSETS: Kept static to bypass startup calibration errors
+const int16_t gyroY_cal = 550; 
+const int16_t gyroZ_cal = 55;  
+
+// SCROLL SPEED CONFIGURATION: Lines moved per loop cycle
+const int SCROLL_SPEED = 1;
+// =========================================================================
+
+float smoothMoveX = 0;
+float smoothMoveY = 0;
 bool previouslyConnected = false;
 
 void setup() {
   Serial.begin(115200);
-  Wire.begin(21, 22); // Initialize I2C (SDA = 21, SCL = 22)
+  Wire.begin(21, 22); 
 
-  // 1. Initialize MPU6050/6500 Power Management Register
   Wire.beginTransmission(MPU_ADDR);
-  Wire.write(0x6B); // PWR_MGMT_1 register
-  Wire.write(0);    // Set to 0 to wake up the IMU sensor
+  Wire.write(0x6B); 
+  Wire.write(0);    
   Wire.endTransmission(true);
 
-  // 2. Configure Button Pins using Internal Pullups
+  // Initializing button inputs with internal pull-up configurations
   pinMode(PIN_LEFT_CLICK, INPUT_PULLUP);
   pinMode(PIN_RIGHT_CLICK, INPUT_PULLUP);
+  pinMode(PIN_WEB_BACK, INPUT_PULLUP);
+  pinMode(PIN_WEB_FORWARD, INPUT_PULLUP);
 
-  // 3. Configure and Start Bluetooth Service
-  Serial.println("Starting BLE Service...");
+  // Initializing LED pins
+  pinMode(WHITE_LED, OUTPUT);
+  pinMode(RED_LED, OUTPUT);
+
+  Serial.println("Starting BLE Combo Service...");
+  
   ESP32BLEComboConfig cfg;
   cfg.deviceName = "ESP32 Air Pointer";
   cfg.manufacturer = "Custom_Maker"; 
-  
-  // Set mode to mouse only to optimize performance and memory footprint
-  cfg.mode = ESP32BLEComboMode::MOUSE_ONLY; 
+  cfg.mode = ESP32BLEComboMode::MOUSE_ONLY;
   
   bleMouse.begin(cfg);
   Serial.println("Waiting for laptop pairing connection...");
-
-  // 4. Run Sensor Gyro Calibration (Keep setup completely flat and still!)
-  calibrateGyro();
 }
 
 void loop() {
+  // Always keep the white LED lit to confirm execution status
+  digitalWrite(WHITE_LED, HIGH);
+
+  // --- NON-BLOCKING BATTERY MONITORING ---
+  // Checks the battery metrics every 1000ms without freezing the loop
+  if (millis() - lastBatteryCheckTime >= BATTERY_CHECK_INTERVAL) {
+    lastBatteryCheckTime = millis();
+    
+    int analog_read = analogRead(ANALOG_PIN);
+    float pin_voltage = (analog_read * 3.3) / 4095.0; 
+    float battery_voltage = pin_voltage * 3.12; 
+
+    Serial.print("Pin V: "); Serial.print(pin_voltage);
+    Serial.print(" | Battery V: "); Serial.print(battery_voltage);
+    Serial.println(" V");
+
+    if (battery_voltage < 6.6) {
+      digitalWrite(RED_LED, HIGH);  // Warning: Voltage low
+    } else {
+      digitalWrite(RED_LED, LOW);   // Battery healthy
+    }
+  }
+
+  // --- AIR MOUSE ENGINE ---
   bool currentlyConnected = bleMouse.isConnected();
 
-  // Crisp connection feedback to serial monitor on state change
   if (currentlyConnected && !previouslyConnected) {
     Serial.println("\n=========================================");
-    Serial.println("SUCCESS: ESP32 Air Pointer Connected via Bluetooth!");
+    Serial.println("SUCCESS: ESP32 Air Pointer Connected!");
     Serial.println("=========================================");
     previouslyConnected = true;
   }
   else if (!currentlyConnected && previouslyConnected) {
-    Serial.println("\n[!] Disconnected. Re-advertising Bluetooth...");
+    Serial.println("\n[!] Disconnected.");
     previouslyConnected = false;
   }
 
-  // Only read sensors and process inputs if Bluetooth is active
   if (currentlyConnected) {
-    handleMouseMovement();
     handleButtonInputs();
+    
+    // Suppress pointer micro-tremors immediately following click mechanics
+    if (millis() - lastClickTime > 80) {
+      handleMouseMovement();
+    }
   }
 
-  delay(10); // Polling rate delay (~100Hz refresh rate)
+  delay(10); // Quick refresh delay (~100Hz) ensures tracking fluidity
 }
 
-// Automatically calculates resting baseline offsets to absorb your 2500 baseline noise
-void calibrateGyro() {
-  long sumX = 0;
-  long sumY = 0;
-  const int samples = 200;
-  
-  Serial.print("Calibrating IMU sensor (Keep still)...");
-  for (int i = 0; i < samples; i++) {
-    Wire.beginTransmission(MPU_ADDR);
-    Wire.write(0x43); // Start reading from Gyro X register
-    Wire.endTransmission(false);
-    Wire.requestFrom(MPU_ADDR, 4, true); // Request 4 bytes (Gyro X & Gyro Y)
-
-    int16_t rawX = (Wire.read() << 8) | Wire.read();
-    int16_t rawY = (Wire.read() << 8) | Wire.read();
-
-    sumX += rawX;
-    sumY += rawY;
-    delay(5);
-  }
-  gyroX_cal = sumX / samples;
-  gyroY_cal = sumY / samples;
-  Serial.println(" Done Calibration!");
-}
-
-// Bypasses Gyro Z; maps Gyro X (Roll) and Gyro Y (Pitch) to cursor coordinates
 void handleMouseMovement() {
   Wire.beginTransmission(MPU_ADDR);
-  Wire.write(0x43); // Start reading from Gyro X register
+  Wire.write(0x45); 
   Wire.endTransmission(false);
-  Wire.requestFrom(MPU_ADDR, 4, true); // Grab 4 bytes
+  Wire.requestFrom(MPU_ADDR, 4, true); 
 
-  int16_t rawGyroX = (Wire.read() << 8) | Wire.read();
-  int16_t rawGyroY = (Wire.read() << 8) | Wire.read();
+  int16_t rawGyroY = (int16_t)(Wire.read() << 8 | Wire.read());
+  int16_t rawGyroZ = (int16_t)(Wire.read() << 8 | Wire.read());
 
-  // Subtract calibration bias (this turns your 2500 readings into 0 at rest)
-  int16_t gyroX = rawGyroX - gyroX_cal;
   int16_t gyroY = rawGyroY - gyroY_cal;
+  int16_t gyroZ = rawGyroZ - gyroZ_cal;
 
-  int moveX = 0;
-  int moveY = 0;
+  float targetX = 0;
+  float targetY = 0;
 
-  // Horizontal movement (via Roll Axis)
-  if (abs(gyroX) > GYRO_DEADZONE) {
-    moveX = (int)(gyroX * SENSITIVITY_X / 500); 
+  if (abs(gyroZ) > GYRO_DEADZONE) {
+    targetX = (-gyroZ * SENSITIVITY_X / 500.0); 
   }
 
-  // Vertical movement (via Pitch Axis)
   if (abs(gyroY) > GYRO_DEADZONE) {
-    moveY = (int)(gyroY * SENSITIVITY_Y / 500);
+    targetY = (gyroY * SENSITIVITY_Y / 500.0); 
   }
 
-  // Send move report if movement occurs
-  if (moveX != 0 || moveY != 0) {
-    bleMouse.mouseMove(moveX, moveY);
+  smoothMoveX = (targetX * SMOOTHING_FACTOR) + (smoothMoveX * (1.0 - SMOOTHING_FACTOR));
+  smoothMoveY = (targetY * SMOOTHING_FACTOR) + (smoothMoveY * (1.0 - SMOOTHING_FACTOR));
+
+  int finalX = (int)smoothMoveX;
+  int finalY = (int)smoothMoveY;
+
+  if (finalX != 0 || finalY != 0) {
+    bleMouse.mouseMove(finalX, finalY);
   }
 }
 
-// Polls Left/Right click hardware pins and transmits click commands
 void handleButtonInputs() {
-  // Read inputs (LOW means the button is actively pressed due to INPUT_PULLUP)
-  bool leftButtonState  = (digitalRead(PIN_LEFT_CLICK) == LOW);
-  bool rightButtonState = (digitalRead(PIN_RIGHT_CLICK) == LOW);
+  bool leftButtonState    = (digitalRead(PIN_LEFT_CLICK) == LOW);
+  bool rightButtonState   = (digitalRead(PIN_RIGHT_CLICK) == LOW);
+  bool scrollDownState    = (digitalRead(PIN_WEB_BACK) == LOW);
+  bool scrollUpState      = (digitalRead(PIN_WEB_FORWARD) == LOW);
 
-  // Managing Left Click using custom state boolean transitions
+  // Top Left: Left Click
   if (leftButtonState && !isLeftPressed) {
     bleMouse.mousePress(CONFIG_MOUSE_LEFT);
     isLeftPressed = true;
+    lastClickTime = millis(); 
   } else if (!leftButtonState && isLeftPressed) {
     bleMouse.mouseRelease(CONFIG_MOUSE_LEFT);
     isLeftPressed = false;
+    lastClickTime = millis(); 
   }
 
-  // Managing Right Click using custom state boolean transitions
+  // Top Right: Right Click
   if (rightButtonState && !isRightPressed) {
     bleMouse.mousePress(CONFIG_MOUSE_RIGHT);
     isRightPressed = true;
+    lastClickTime = millis(); 
   } else if (!rightButtonState && isRightPressed) {
     bleMouse.mouseRelease(CONFIG_MOUSE_RIGHT);
     isRightPressed = false;
+    lastClickTime = millis(); 
+  }
+
+  // Bottom Left: Scroll Down
+  if (scrollDownState) {
+    bleMouse.mouseScroll(-SCROLL_SPEED);
+    lastClickTime = millis(); 
+  }
+
+  // Bottom Right: Scroll Up
+  if (scrollUpState) {
+    bleMouse.mouseScroll(SCROLL_SPEED);
+    lastClickTime = millis(); 
   }
 }
+  
